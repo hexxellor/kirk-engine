@@ -22,6 +22,23 @@ typedef unsigned int u32;
 #define KIRK_INVALID_SIZE 0xF
 #define KIRK_DATA_SIZE_ZERO 0x10
 
+typedef struct
+{
+	int mode;
+	int unk_4;
+	int unk_8;
+	int keyseed;
+	int size;
+} KIRK_AES128CBC_HEADER;
+
+
+#define KIRK_CMD_ENCRYPT_IV_0 4
+#define KIRK_CMD_ENCRYPT_IV_FUSE 5
+#define KIRK_CMD_ENCRYPT_IV_USER 6
+#define KIRK_CMD_DECRYPT_IV_0 7
+#define KIRK_CMD_DECRYPT_IV_FUSE 8
+#define KIRK_CMD_DECRYPT_IV_USER 9
+
 /*
       // Private Sig + Cipher
       0x01: Super-Duper decryption (no inverse)
@@ -48,5 +65,6 @@ typedef unsigned int u32;
       0x11: Signature Check (checks for generated sigs)
       0x12: Certificate Check (idstorage signatures)
 */
-int kirk7_encrypt(void* outbuff, void* inbuff, int size, int key_type);
-int kirk7_decrypt(void* outbuff, void* inbuff, int size, int key_type);
+
+int sceUtilsSetFuseID(void*fuse);
+int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd);

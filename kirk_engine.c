@@ -1,6 +1,6 @@
 /* 
 	KIRK ENGINE CODE
-	Thx for kgsws, Mathieulh, SilverSpring
+	Thx for kgsws, Mathieulh, SilverSpring, Davee
 */
 
 
@@ -32,6 +32,10 @@ type 0x63: 9C9B1372F8C640CF1C62F5D592DDB582
 type 0x64: 03B302E85FF381B13B8DAA2A90FF5E61
 */
 
+u8 fuseID[16]; //Emulate FUSEID	
+
+u8 kirk1_key[] =   {0x98, 0xC9, 0x40, 0x97, 0x5C, 0x1D, 0x10, 0xE8, 0x7F, 0xE6, 0x0E, 0xA3, 0xFD, 0x03, 0xA8, 0xBA};
+
 u8 kirk7_key03[] = {0x98, 0x02, 0xC4, 0xE6, 0xEC, 0x9E, 0x9E, 0x2F, 0xFC, 0x63, 0x4C, 0xE4, 0x2F, 0xBB, 0x46, 0x68};
 u8 kirk7_key04[] = {0x99, 0x24, 0x4C, 0xD2, 0x58, 0xF5, 0x1B, 0xCB, 0xB0, 0x61, 0x9C, 0xA7, 0x38, 0x30, 0x07, 0x5F};
 u8 kirk7_key05[] = {0x02, 0x25, 0xD7, 0xBA, 0x63, 0xEC, 0xB9, 0x4A, 0x9D, 0x23, 0x76, 0x01, 0xB3, 0xF6, 0xAC, 0x17};
@@ -52,7 +56,7 @@ u8 kirk7_key5D[] = {0x11, 0x5A, 0x5D, 0x20, 0xD5, 0x3A, 0x8D, 0xD3, 0x9C, 0xC5, 
 u8 kirk7_key63[] = {0x9C, 0x9B, 0x13, 0x72, 0xF8, 0xC6, 0x40, 0xCF, 0x1C, 0x62, 0xF5, 0xD5, 0x92, 0xDD, 0xB5, 0x82};
 u8 kirk7_key64[] = {0x03, 0xB3, 0x02, 0xE8, 0x5F, 0xF3, 0x81, 0xB1, 0x3B, 0x8D, 0xAA, 0x2A, 0x90, 0xFF, 0x5E, 0x61};
 
-u8* kirk7_get_key(int key_type)
+u8* kirk_4_7_get_key(int key_type)
 {
     switch(key_type)
 	{
@@ -79,36 +83,40 @@ u8* kirk7_get_key(int key_type)
 	}
 }
 
-int kirk7_encrypt(void* outbuff, void* inbuff, int size, int key_type)
+int kirk_AES_128_CBC_encrypt(void* outbuff, void* inbuff, int size, u8* key, u8* IV)
 {
-	u8* key = kirk7_get_key(key_type);
 	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
 	if(size == 0) return KIRK_DATA_SIZE_ZERO;
 	
-	
 	u8 ivec[16];
-	memset(ivec, 0, sizeof(ivec));  // all zero for CMD 7
+	memset(ivec, 0, sizeof(ivec));
+	if(IV != NULL)
+	{
+	      memcpy(ivec, IV, sizeof(ivec));
+    }
 	
 	//Set the key
 	AES_KEY aesKey;
 	AES_set_encrypt_key(key, 128, &aesKey);
 	
-	AES_cbc_encrypt(inbuff, outbuff, size, &aesKey, ivec, AES_ENCRYPT);
+ 	AES_cbc_encrypt(inbuff, outbuff, size, &aesKey, ivec, AES_ENCRYPT);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk7_decrypt(void* outbuff, void* inbuff, int size, int key_type)
+int kirk_AES_128_CBC_decrypt(void* outbuff, void* inbuff, int size, u8* key, u8* IV)
 {
-	u8* key = kirk7_get_key(key_type);
 	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
 	if(size == 0) return KIRK_DATA_SIZE_ZERO;
 	
-	
 	u8 ivec[16];
-	memset(ivec, 0, sizeof(ivec));  // all zero for CMD 7
+	memset(ivec, 0, sizeof(ivec));
+	if(IV != NULL)
+	{
+	      memcpy(ivec, IV, sizeof(ivec));
+    }
 	
 	//Set the key
 	AES_KEY aesKey;
@@ -118,4 +126,39 @@ int kirk7_decrypt(void* outbuff, void* inbuff, int size, int key_type)
 	
 	return KIRK_OPERATION_SUCCESS;
 }
-	
+
+int sceUtilsSetFuseID(void*fuse)
+{
+	memcpy(fuseID, fuse, 16);
+	return 0;
+}
+
+int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd)
+{
+	if(cmd == KIRK_CMD_ENCRYPT_IV_0 || cmd == KIRK_CMD_ENCRYPT_IV_FUSE || cmd == KIRK_CMD_ENCRYPT_IV_USER)
+	{
+		u8* iv_crypt;
+		switch(cmd)
+		{
+			case(KIRK_CMD_ENCRYPT_IV_0): iv_crypt = NULL; break;
+			case(KIRK_CMD_ENCRYPT_IV_FUSE): iv_crypt = fuseID; break;
+			case(KIRK_CMD_ENCRYPT_IV_USER): iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER);
+		}
+		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
+		return kirk_AES_128_CBC_encrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER), header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
+	}
+	else
+	if(cmd == KIRK_CMD_DECRYPT_IV_0 || cmd == KIRK_CMD_DECRYPT_IV_FUSE || cmd == KIRK_CMD_DECRYPT_IV_USER)
+	{
+		u8* iv_crypt;
+		switch(cmd)
+		{
+			case(KIRK_CMD_DECRYPT_IV_0): iv_crypt = NULL; break;
+			case(KIRK_CMD_DECRYPT_IV_FUSE): iv_crypt = fuseID; break;
+			case(KIRK_CMD_DECRYPT_IV_USER): iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER);
+		}
+		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
+		return kirk_AES_128_CBC_decrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER), header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
+	}
+	return -1;
+}
