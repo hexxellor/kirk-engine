@@ -94,7 +94,7 @@ int kirk_AES_128_CBC_encrypt(void* outbuff, void* inbuff, int size, u8* key, u8*
 	if(IV != NULL)
 	{
 	      memcpy(ivec, IV, sizeof(ivec));
-    }
+	}
 	
 	//Set the key
 	AES_KEY aesKey;
@@ -116,7 +116,7 @@ int kirk_AES_128_CBC_decrypt(void* outbuff, void* inbuff, int size, u8* key, u8*
 	if(IV != NULL)
 	{
 	      memcpy(ivec, IV, sizeof(ivec));
-    }
+	}
 	
 	//Set the key
 	AES_KEY aesKey;
@@ -138,27 +138,29 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 	if(cmd == KIRK_CMD_ENCRYPT_IV_0 || cmd == KIRK_CMD_ENCRYPT_IV_FUSE || cmd == KIRK_CMD_ENCRYPT_IV_USER)
 	{
 		u8* iv_crypt;
+		int additional_data = 0;  //because the user IV key is after the header
 		switch(cmd)
 		{
 			case(KIRK_CMD_ENCRYPT_IV_0): iv_crypt = NULL; break;
 			case(KIRK_CMD_ENCRYPT_IV_FUSE): iv_crypt = fuseID; break;
-			case(KIRK_CMD_ENCRYPT_IV_USER): iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER);
+			case(KIRK_CMD_ENCRYPT_IV_USER): additional_data = 128; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
 		}
 		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
-		return kirk_AES_128_CBC_encrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER), header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
+		return kirk_AES_128_CBC_encrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER)+additional_data, header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
 	}
 	else
 	if(cmd == KIRK_CMD_DECRYPT_IV_0 || cmd == KIRK_CMD_DECRYPT_IV_FUSE || cmd == KIRK_CMD_DECRYPT_IV_USER)
 	{
 		u8* iv_crypt;
+		int additional_data = 0; //because the user IV key is after the header
 		switch(cmd)
 		{
 			case(KIRK_CMD_DECRYPT_IV_0): iv_crypt = NULL; break;
 			case(KIRK_CMD_DECRYPT_IV_FUSE): iv_crypt = fuseID; break;
-			case(KIRK_CMD_DECRYPT_IV_USER): iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER);
+			case(KIRK_CMD_DECRYPT_IV_USER): additional_data = 128; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
 		}
 		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
-		return kirk_AES_128_CBC_decrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER), header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
+		return kirk_AES_128_CBC_decrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER)+additional_data, header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
 	}
 	return -1;
 }
