@@ -48,5 +48,5 @@ typedef unsigned int u32;
       0x11: Signature Check (checks for generated sigs)
       0x12: Certificate Check (idstorage signatures)
 */
-
 int kirk7_encrypt(void* outbuff, void* inbuff, int size, int key_type);
+int kirk7_decrypt(void* outbuff, void* inbuff, int size, int key_type);

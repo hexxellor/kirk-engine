@@ -1,3 +1,9 @@
+/* 
+	KIRK ENGINE CODE
+	Thx for kgsws, Mathieulh, SilverSpring
+*/
+
+
 #include <openssl/aes.h>
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
@@ -29,47 +35,53 @@ type 0x64: 03B302E85FF381B13B8DAA2A90FF5E61
 u8 kirk7_key03[] = {0x98, 0x02, 0xC4, 0xE6, 0xEC, 0x9E, 0x9E, 0x2F, 0xFC, 0x63, 0x4C, 0xE4, 0x2F, 0xBB, 0x46, 0x68};
 u8 kirk7_key4B[] = {0x0C, 0xFD, 0x67, 0x9A, 0xF9, 0xB4, 0x72, 0x4F, 0xD7, 0x8D, 0xD6, 0xE9, 0x96, 0x42, 0x28, 0x8B}; //1.xx game eboot.bin
 
+u8* kirk7_get_key(int key_type)
+{
+    switch(key_type)
+	{
+		case(0x03): return kirk7_key03; break;
+		case(0x4B): return kirk7_key4B; break;
+		default: return (u8*)KIRK_INVALID_SIZE; break; //need to get the real error code for that, placeholder now :)
+	}
+}
+
 int kirk7_encrypt(void* outbuff, void* inbuff, int size, int key_type)
 {
-	u8* key = NULL;
-	switch(key_type)
-	{
-		case(0x03): key = kirk7_key03; break;
-		case(0x4B): key = kirk7_key4B; break;
-		default: return KIRK_INVALID_SIZE; break; //need to get the real error code for that, placeholder now :)
-	}
+	u8* key = kirk7_get_key(key_type);
+	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
 	if(size == 0) return KIRK_DATA_SIZE_ZERO;
 	
-	int i, j, blocks;
-	u8 buff[64]; // buffer for data
-	u8 *bufc; // buffer pointer to current step
-	u8 code[16]; // part of output
+	
+	u8 ivec[16];
+	memset(ivec, 0, sizeof(ivec));  // all zero for CMD 7
+	
+	//Set the key
 	AES_KEY aesKey;
-
-	memcpy(buff, text, strlen(text)); // fill buffer
-	bufc = buff;
-
-	blocks = sizeof(buff) / 16;
-	for(i = 0; i < blocks; i++) {
-		if(i) {
-			// xor current data block with previous key block
-			// destructive = data buffer is changed
-			for(j = 0; j < 16; j++) {
-				bufc[j] ^= code[j];
-			}
-		}
-
-		AES_set_encrypt_key(key, 128, &aesKey);
-		AES_encrypt(bufc, code, &aesKey);
-		bufc += 16;
-
-		// print this part
-		for(j = 0; j < 16; j++) {
-			printf("%02X", code[j] & 0xFF);
-		}
-		printf("\n");
-	}
+	AES_set_encrypt_key(key, 128, &aesKey);
+	
+	AES_cbc_encrypt(inbuff, outbuff, size, &aesKey, ivec, AES_ENCRYPT);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
+
+int kirk7_decrypt(void* outbuff, void* inbuff, int size, int key_type)
+{
+	u8* key = kirk7_get_key(key_type);
+	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
+	
+	if(size == 0) return KIRK_DATA_SIZE_ZERO;
+	
+	
+	u8 ivec[16];
+	memset(ivec, 0, sizeof(ivec));  // all zero for CMD 7
+	
+	//Set the key
+	AES_KEY aesKey;
+	AES_set_decrypt_key(key, 128, &aesKey);
+	
+	AES_cbc_encrypt(inbuff, outbuff, size, &aesKey, ivec, AES_DECRYPT);
+	
+	return KIRK_OPERATION_SUCCESS;
+}
+	
