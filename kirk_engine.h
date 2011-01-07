@@ -41,7 +41,7 @@ typedef struct
 	u8 unk2[16];               //50
 	u8 unk3[16];               //60
 	u32 data_size;             //70
-	u8 unk4[15];               //74
+	u8 unk4[12];               //74
 	u8 unk5[16];               //80
 } KIRK_CMD1_HEADER; //0x90
 

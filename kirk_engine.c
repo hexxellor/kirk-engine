@@ -156,7 +156,7 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 {
 	if(cmd ==KIRK_CMD_DECRYPT_PRIVATE)
 	{
-		return kirk_CMD1_decrypt(outbuff, inbuff+sizeof(KIRK_CMD1_HEADER), size, (KIRK_CMD1_HEADER*)inbuff);
+		return kirk_CMD1_decrypt(outbuff, inbuff+sizeof(KIRK_CMD1_HEADER), insize, (KIRK_CMD1_HEADER*)inbuff);
 	}
 	else
 	if(cmd == KIRK_CMD_ENCRYPT_IV_0 || cmd == KIRK_CMD_ENCRYPT_IV_FUSE || cmd == KIRK_CMD_ENCRYPT_IV_USER)
