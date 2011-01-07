@@ -24,14 +24,28 @@ typedef unsigned int u32;
 
 typedef struct
 {
-	int mode;
-	int unk_4;
-	int unk_8;
-	int keyseed;
-	int size;
-} KIRK_AES128CBC_HEADER;
+	int mode;    //0
+	int unk_4;   //4
+	int unk_8;   //8
+	int keyseed; //C
+	int size;   //10
+} KIRK_AES128CBC_HEADER; //0x14
 
+typedef struct
+{
+	u8 encrypted_AES_key[16];  //0
+	u8 encrypted_CMAC_key[16]; //10
+	u8 CMAC_header_hash[16];   //20
+	u8 CMAC_data_hash[16];     //30
+	u8 unk1[16];               //40
+	u8 unk2[16];               //50
+	u8 unk3[16];               //60
+	u32 data_size;             //70
+	u8 unk4[15];               //74
+	u8 unk5[16];               //80
+} KIRK_CMD1_HEADER; //0x90
 
+#define KIRK_CMD_DECRYPT_PRIVATE 1
 #define KIRK_CMD_ENCRYPT_IV_0 4
 #define KIRK_CMD_ENCRYPT_IV_FUSE 5
 #define KIRK_CMD_ENCRYPT_IV_USER 6

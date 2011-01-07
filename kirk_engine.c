@@ -83,6 +83,25 @@ u8* kirk_4_7_get_key(int key_type)
 	}
 }
 
+int kirk_CMD1_decrypt(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header)
+{
+	u8 decrypted_AES_key[16];
+	
+	AES_KEY aesKey;
+	AES_set_decrypt_key(kirk1_key, 128, &aesKey);
+	
+	u8 ivec[16];
+	memset(ivec, 0, sizeof(ivec));
+	
+	AES_cbc_encrypt(header->encrypted_AES_key, decrypted_AES_key, 16, &aesKey, ivec, AES_DECRYPT);
+	
+	AES_set_decrypt_key(decrypted_AES_key, 128, &aesKey);
+	
+	AES_cbc_encrypt(inbuff, outbuff, header->data_size, &aesKey, ivec, AES_DECRYPT);
+	
+	return KIRK_OPERATION_SUCCESS;
+}
+
 int kirk_AES_128_CBC_encrypt(void* outbuff, void* inbuff, int size, u8* key, u8* IV)
 {
 	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
@@ -135,6 +154,11 @@ int sceUtilsSetFuseID(void*fuse)
 
 int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd)
 {
+	if(cmd ==KIRK_CMD_DECRYPT_PRIVATE)
+	{
+		return kirk_CMD1_decrypt(outbuff, inbuff+sizeof(KIRK_CMD1_HEADER), size, (KIRK_CMD1_HEADER*)inbuff);
+	}
+	else
 	if(cmd == KIRK_CMD_ENCRYPT_IV_0 || cmd == KIRK_CMD_ENCRYPT_IV_FUSE || cmd == KIRK_CMD_ENCRYPT_IV_USER)
 	{
 		u8* iv_crypt;
@@ -143,7 +167,7 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 		{
 			case(KIRK_CMD_ENCRYPT_IV_0): iv_crypt = NULL; break;
 			case(KIRK_CMD_ENCRYPT_IV_FUSE): iv_crypt = fuseID; break;
-			case(KIRK_CMD_ENCRYPT_IV_USER): additional_data = 128; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
+			case(KIRK_CMD_ENCRYPT_IV_USER): additional_data = 16; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
 		}
 		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
 		return kirk_AES_128_CBC_encrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER)+additional_data, header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
@@ -157,7 +181,7 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 		{
 			case(KIRK_CMD_DECRYPT_IV_0): iv_crypt = NULL; break;
 			case(KIRK_CMD_DECRYPT_IV_FUSE): iv_crypt = fuseID; break;
-			case(KIRK_CMD_DECRYPT_IV_USER): additional_data = 128; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
+			case(KIRK_CMD_DECRYPT_IV_USER): additional_data = 16; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
 		}
 		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
 		return kirk_AES_128_CBC_decrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER)+additional_data, header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
