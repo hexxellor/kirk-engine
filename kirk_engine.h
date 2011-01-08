@@ -1,4 +1,5 @@
-
+#ifndef KIRK_ENGINE
+#define KIRK_ENGINE
 typedef unsigned char u8;
 typedef unsigned short int u16;
 typedef unsigned int u32;
@@ -7,8 +8,8 @@ typedef unsigned int u32;
 #define KIRK_OPERATION_SUCCESS 0
 #define KIRK_NOT_ENABLED 1
 #define KIRK_INVALID_MODE 2
-#define KIRK_HEADER_CHECK_INVALID 3
-#define KIRK_DATA_CHECK_INVALID
+#define KIRK_HEADER_HASH_INVALID 3
+#define KIRK_DATA_HASH_INVALID 4
 #define KIRK_SIG_CHECK_INVALID 5
 #define KIRK_UNK_1 6
 #define KIRK_UNK_2 7
@@ -28,20 +29,21 @@ typedef struct
 	int unk_4;   //4
 	int unk_8;   //8
 	int keyseed; //C
-	int size;   //10
+	int data_size;   //10
 } KIRK_AES128CBC_HEADER; //0x14
 
 typedef struct
 {
-	u8 encrypted_AES_key[16];  //0
-	u8 encrypted_CMAC_key[16]; //10
+	u8 AES_key[16];            //0
+	u8 CMAC_key[16];           //10
 	u8 CMAC_header_hash[16];   //20
 	u8 CMAC_data_hash[16];     //30
-	u8 unk1[16];               //40
-	u8 unk2[16];               //50
-	u8 unk3[16];               //60
+	u8 unused[32];             //40
+	u32 mode;                  //60
+	u8 unk3[12];               //64
 	u32 data_size;             //70
-	u8 unk4[12];               //74
+	u32 data_offset;              //74  
+	u8 unk4[8];                //78
 	u8 unk5[16];               //80
 } KIRK_CMD1_HEADER; //0x90
 
@@ -52,6 +54,13 @@ typedef struct
 #define KIRK_CMD_DECRYPT_IV_0 7
 #define KIRK_CMD_DECRYPT_IV_FUSE 8
 #define KIRK_CMD_DECRYPT_IV_USER 9
+#define KIRK_CMD_PRIV_SIG_CHECK 10
+
+#define KIRK_MODE_CMD1 1
+#define KIRK_MODE_CMD2 2
+#define KIRK_MODE_CMD3 3
+#define KIRK_MODE_ENCRYPT_CBC 4
+#define KIRK_MODE_DECRYPT_CBC 5
 
 /*
       // Private Sig + Cipher
@@ -82,3 +91,8 @@ typedef struct
 
 int sceUtilsSetFuseID(void*fuse);
 int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd);
+
+int kirk_CMD1_decrypt(void* outbuff, void* inbuff, int size);
+int kirk_CMD10_check(void* inbuff, int size);
+
+#endif

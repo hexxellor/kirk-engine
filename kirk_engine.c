@@ -8,6 +8,7 @@
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
 #include "kirk_engine.h"
+#include "cmac.h"
 
 /*
 KIRK cmd 7 key list
@@ -83,65 +84,123 @@ u8* kirk_4_7_get_key(int key_type)
 	}
 }
 
-int kirk_CMD1_decrypt(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header)
+typedef struct header_keys
 {
-	u8 decrypted_AES_key[16];
+    u8 AES[16];
+    u8 CMAC[16];
+}header_keys;
+
+int kirk_CMD10(void* inbuff, int size)
+{
+    KIRK_CMD1_HEADER* header = (KIRK_CMD1_HEADER*)inbuff;
+	if(header->mode != KIRK_MODE_CMD1) return KIRK_INVALID_MODE;
+	if(header->data_size == 0) return KIRK_DATA_SIZE_ZERO;
 	
-	AES_KEY aesKey;
-	AES_set_decrypt_key(kirk1_key, 128, &aesKey);
+	if(header->mode == KIRK_MODE_CMD1)
+	{
+		header_keys keys; //0-15 AES key, 16-31 CMAC key
+	
+		AES_KEY a;
+		AES_set_decrypt_key(kirk1_key, 128, &a);
+	
+		u8 ivec[16];
+		memset(ivec, 0, sizeof(ivec));
+	
+		AES_cbc_encrypt(inbuff, (u8*)&keys, 16*2, &a, ivec, AES_DECRYPT); //decrypt AES & CMAC key to temp buffer
+	
+		u8 cmac_header_hash[16];
+		AES_CMAC(keys.CMAC, inbuff+0x60, 0x30, cmac_header_hash);
+	
+		u8 cmac_data_hash[16];
+	
+		//Make sure data is 16 aligned
+		int chk_size = header->data_size;
+		if(chk_size % 16) chk_size += 16 - (chk_size % 16);
+	
+		AES_CMAC(keys.CMAC, inbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
+	
+		if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0) return KIRK_HEADER_HASH_INVALID;
+		if(memcmp(cmac_data_hash, header->CMAC_data_hash, 16) != 0) return KIRK_DATA_HASH_INVALID;
+	
+		return KIRK_OPERATION_SUCCESS;
+	}
+	return KIRK_SIG_CHECK_INVALID; //Checks for cmd 2 & 3 not included right now
+}
+
+int kirk_CMD1(void* outbuff, void* inbuff, int size)
+{
+    KIRK_CMD1_HEADER* header = (KIRK_CMD1_HEADER*)inbuff;
+	if(header->mode != KIRK_MODE_CMD1) return KIRK_INVALID_MODE;
+	
+    int ret = kirk_CMD10(inbuff, size);
+    if(ret != KIRK_OPERATION_SUCCESS) return ret;
+	
+	header_keys keys; //0-15 AES key, 16-31 CMAC key
+	
+	AES_KEY a;
+	AES_set_decrypt_key(kirk1_key, 128, &a);
 	
 	u8 ivec[16];
 	memset(ivec, 0, sizeof(ivec));
 	
-	AES_cbc_encrypt(header->encrypted_AES_key, decrypted_AES_key, 16, &aesKey, ivec, AES_DECRYPT);
+	AES_cbc_encrypt(inbuff, (u8*)&keys, 16*2, &a, ivec, AES_DECRYPT); //decrypt AES & CMAC key to temp buffer
 	
-	AES_set_decrypt_key(decrypted_AES_key, 128, &aesKey);
+	AES_KEY k1;
+	AES_set_decrypt_key(keys.AES, 128, &k1);
 	
-	AES_cbc_encrypt(inbuff, outbuff, header->data_size, &aesKey, ivec, AES_DECRYPT);
+	AES_cbc_encrypt(inbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, outbuff, header->data_size, &k1, ivec, AES_DECRYPT);	
 	
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_AES_128_CBC_encrypt(void* outbuff, void* inbuff, int size, u8* key, u8* IV)
+int kirk_CMD1_ex(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header)
 {
-	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
+    u8* buffer = (u8*)malloc(size);
+    memcpy(buffer, header, sizeof(KIRK_CMD1_HEADER));
+    memcpy(buffer+sizeof(KIRK_CMD1_HEADER), inbuff, header->data_size);
+    int ret = kirk_CMD1(outbuff, buffer, size);
+    free(buffer);
+    return ret;
+}
+
+int kirk_CMD4(void* outbuff, void* inbuff, int size)
+{
+	KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
+	if(header->mode != KIRK_MODE_ENCRYPT_CBC) return KIRK_INVALID_MODE;
+	if(header->data_size == 0) return KIRK_DATA_SIZE_ZERO;
 	
-	if(size == 0) return KIRK_DATA_SIZE_ZERO;
+	u8* key = kirk_4_7_get_key(header->keyseed);
+	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
 	u8 ivec[16];
 	memset(ivec, 0, sizeof(ivec));
-	if(IV != NULL)
-	{
-	      memcpy(ivec, IV, sizeof(ivec));
-	}
 	
 	//Set the key
 	AES_KEY aesKey;
 	AES_set_encrypt_key(key, 128, &aesKey);
 	
- 	AES_cbc_encrypt(inbuff, outbuff, size, &aesKey, ivec, AES_ENCRYPT);
+ 	AES_cbc_encrypt(inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size, &aesKey, ivec, AES_ENCRYPT);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_AES_128_CBC_decrypt(void* outbuff, void* inbuff, int size, u8* key, u8* IV)
+int kirk_CMD7(void* outbuff, void* inbuff, int size)
 {
-	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
+	KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
+	if(header->mode != KIRK_MODE_DECRYPT_CBC) return KIRK_INVALID_MODE;
+	if(header->data_size == 0) return KIRK_DATA_SIZE_ZERO;
 	
-	if(size == 0) return KIRK_DATA_SIZE_ZERO;
+	u8* key = kirk_4_7_get_key(header->keyseed);
+	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
 	u8 ivec[16];
 	memset(ivec, 0, sizeof(ivec));
-	if(IV != NULL)
-	{
-	      memcpy(ivec, IV, sizeof(ivec));
-	}
 	
 	//Set the key
 	AES_KEY aesKey;
 	AES_set_decrypt_key(key, 128, &aesKey);
 	
-	AES_cbc_encrypt(inbuff, outbuff, size, &aesKey, ivec, AES_DECRYPT);
+ 	AES_cbc_encrypt(inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size, &aesKey, ivec, AES_DECRYPT);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
@@ -154,37 +213,12 @@ int sceUtilsSetFuseID(void*fuse)
 
 int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd)
 {
-	if(cmd ==KIRK_CMD_DECRYPT_PRIVATE)
-	{
-		return kirk_CMD1_decrypt(outbuff, inbuff+sizeof(KIRK_CMD1_HEADER), insize, (KIRK_CMD1_HEADER*)inbuff);
-	}
-	else
-	if(cmd == KIRK_CMD_ENCRYPT_IV_0 || cmd == KIRK_CMD_ENCRYPT_IV_FUSE || cmd == KIRK_CMD_ENCRYPT_IV_USER)
-	{
-		u8* iv_crypt;
-		int additional_data = 0;  //because the user IV key is after the header
-		switch(cmd)
-		{
-			case(KIRK_CMD_ENCRYPT_IV_0): iv_crypt = NULL; break;
-			case(KIRK_CMD_ENCRYPT_IV_FUSE): iv_crypt = fuseID; break;
-			case(KIRK_CMD_ENCRYPT_IV_USER): additional_data = 16; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
-		}
-		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
-		return kirk_AES_128_CBC_encrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER)+additional_data, header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
-	}
-	else
-	if(cmd == KIRK_CMD_DECRYPT_IV_0 || cmd == KIRK_CMD_DECRYPT_IV_FUSE || cmd == KIRK_CMD_DECRYPT_IV_USER)
-	{
-		u8* iv_crypt;
-		int additional_data = 0; //because the user IV key is after the header
-		switch(cmd)
-		{
-			case(KIRK_CMD_DECRYPT_IV_0): iv_crypt = NULL; break;
-			case(KIRK_CMD_DECRYPT_IV_FUSE): iv_crypt = fuseID; break;
-			case(KIRK_CMD_DECRYPT_IV_USER): additional_data = 16; iv_crypt = inbuff+sizeof(KIRK_AES128CBC_HEADER); break;
-		}
-		KIRK_AES128CBC_HEADER *header = (KIRK_AES128CBC_HEADER*)inbuff;
-		return kirk_AES_128_CBC_decrypt(outbuff, inbuff+sizeof(KIRK_AES128CBC_HEADER)+additional_data, header->size, kirk_4_7_get_key(header->keyseed), iv_crypt);
+    switch(cmd)
+    {
+		case KIRK_CMD_DECRYPT_PRIVATE: return kirk_CMD1(outbuff, inbuff, insize); break;
+		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
+		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
+		case KIRK_CMD_PRIV_SIG_CHECK: return kirk_CMD10(inbuff, insize); break;
 	}
 	return -1;
 }
