@@ -42,11 +42,12 @@ typedef struct
 	u32 mode;                  //60
 	u8 unk3[12];               //64
 	u32 data_size;             //70
-	u32 data_offset;              //74  
+	u32 data_offset;           //74  
 	u8 unk4[8];                //78
 	u8 unk5[16];               //80
 } KIRK_CMD1_HEADER; //0x90
 
+//mode passed to sceUtilsBufferCopyWithRange
 #define KIRK_CMD_DECRYPT_PRIVATE 1
 #define KIRK_CMD_ENCRYPT_IV_0 4
 #define KIRK_CMD_ENCRYPT_IV_FUSE 5
@@ -56,6 +57,7 @@ typedef struct
 #define KIRK_CMD_DECRYPT_IV_USER 9
 #define KIRK_CMD_PRIV_SIG_CHECK 10
 
+//"mode" in header
 #define KIRK_MODE_CMD1 1
 #define KIRK_MODE_CMD2 2
 #define KIRK_MODE_CMD3 3
@@ -89,10 +91,21 @@ typedef struct
       0x12: Certificate Check (idstorage signatures)
 */
 
+//kirk-like funcs
+int kirk_CMD1(void* outbuff, void* inbuff, int size);
+int kirk_CMD4(void* outbuff, void* inbuff, int size);
+int kirk_CMD7(void* outbuff, void* inbuff, int size);
+int kirk_CMD10(void* inbuff, int insize);
+int kirk_init(); //CMD 0xF?
+
+//helper funcs
+u8* kirk_4_7_get_key(int key_type);
+
+//kirk "ex" functions
+int kirk_CMD1_ex(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header);
+
+//sce-like funcs
 int sceUtilsSetFuseID(void*fuse);
 int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd);
-
-int kirk_CMD1_decrypt(void* outbuff, void* inbuff, int size);
-int kirk_CMD10_check(void* inbuff, int size);
 
 #endif
