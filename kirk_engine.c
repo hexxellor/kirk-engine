@@ -1,12 +1,8 @@
 /* 
 	KIRK ENGINE CODE
-	Thx for kgsws, Mathieulh, SilverSpring, Davee
+	Thx for coyotebean, Davee, kgsws, Mathieulh, SilverSpring
 */
-#include <openssl/aes.h>
-#include <openssl/sha.h>
-#include <openssl/hmac.h>
-#include "kirk_engine.h"
-#include "cmac.h"
+#include "crypto.h"
 
 /* ------------------------- KEY VAULT ------------------------- */
 
@@ -44,9 +40,7 @@ typedef struct header_keys
 
 u8 fuseID[16]; //Emulate FUSEID	
 
-u8 ivec[16]; //IV always 0 for all commands
-
-AES_KEY aes_kirk1; //global
+AES_ctx aes_kirk1; //global
 
 char is_kirk_initialized; //"init" emulation
 
@@ -65,15 +59,15 @@ int kirk_CMD1(void* outbuff, void* inbuff, int size)
 	
 	header_keys keys; //0-15 AES key, 16-31 CMAC key
 	
-	AES_cbc_encrypt(inbuff, (u8*)&keys, 16*2, &aes_kirk1, ivec, AES_DECRYPT); //decrypt AES & CMAC key to temp buffer
+	AES_cbc_decrypt(&aes_kirk1, inbuff, (u8*)&keys, 16*2); //decrypt AES & CMAC key to temp buffer
 	
     int ret = kirk_CMD10(inbuff, size);
     if(ret != KIRK_OPERATION_SUCCESS) return ret;
 	
-	AES_KEY k1;
-	AES_set_decrypt_key(keys.AES, 128, &k1);
+	AES_ctx k1;
+	AES_set_key(&k1, keys.AES, 128);
 	
-	AES_cbc_encrypt(inbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, outbuff, header->data_size, &k1, ivec, AES_DECRYPT);	
+	AES_cbc_decrypt(&k1, inbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, outbuff, header->data_size);	
 	
 	return KIRK_OPERATION_SUCCESS;
 }
@@ -89,14 +83,10 @@ int kirk_CMD4(void* outbuff, void* inbuff, int size)
 	u8* key = kirk_4_7_get_key(header->keyseed);
 	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
-	u8 ivec[16];
-	memset(ivec, 0, sizeof(ivec));
-	
 	//Set the key
-	AES_KEY aesKey;
-	AES_set_encrypt_key(key, 128, &aesKey);
-	
- 	AES_cbc_encrypt(inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size, &aesKey, ivec, AES_ENCRYPT);
+	AES_ctx aesKey;
+	AES_set_key(&aesKey, key, 128);
+ 	AES_cbc_encrypt(&aesKey, inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
@@ -112,14 +102,11 @@ int kirk_CMD7(void* outbuff, void* inbuff, int size)
 	u8* key = kirk_4_7_get_key(header->keyseed);
 	if(key == (u8*)KIRK_INVALID_SIZE) return KIRK_INVALID_SIZE;
 	
-	u8 ivec[16];
-	memset(ivec, 0, sizeof(ivec));
-	
 	//Set the key
-	AES_KEY aesKey;
-	AES_set_decrypt_key(key, 128, &aesKey);
+	AES_ctx aesKey;
+	AES_set_key(&aesKey, key, 128);
 	
- 	AES_cbc_encrypt(inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size, &aesKey, ivec, AES_DECRYPT);
+ 	AES_cbc_decrypt(&aesKey, inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
@@ -136,23 +123,28 @@ int kirk_CMD10(void* inbuff, int insize)
 	if(header->mode == KIRK_MODE_CMD1)
 	{
         header_keys keys; //0-15 AES key, 16-31 CMAC key
-        AES_cbc_encrypt(inbuff, (u8*)&keys, 32, &aes_kirk1, ivec, AES_DECRYPT); //decrypt AES & CMAC key to temp buffer
+        
+        AES_cbc_decrypt(&aes_kirk1, inbuff, (u8*)&keys, 32); //decrypt AES & CMAC key to temp buffer
+	    
+	    AES_ctx cmac_key;
+	    AES_set_key(&cmac_key, keys.CMAC, 128);
 	    
 		u8 cmac_header_hash[16];
-		AES_CMAC(keys.CMAC, inbuff+0x60, 0x30, cmac_header_hash);
-	
 		u8 cmac_data_hash[16];
+		
+		AES_CMAC(&cmac_key, inbuff+0x60, 0x30, cmac_header_hash);
 	
 		//Make sure data is 16 aligned
 		int chk_size = header->data_size;
 		if(chk_size % 16) chk_size += 16 - (chk_size % 16);
-		AES_CMAC(keys.CMAC, inbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
+		AES_CMAC(&cmac_key, inbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
 	
-		if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0)
+		/*if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0)
         {
             printf("header hash invalid\n");
             return KIRK_HEADER_HASH_INVALID;
         }
+        */
 		if(memcmp(cmac_data_hash, header->CMAC_data_hash, 16) != 0)
         {
             printf("data hash invalid\n");
@@ -166,7 +158,7 @@ int kirk_CMD10(void* inbuff, int insize)
 
 int kirk_init()
 {
-    AES_set_decrypt_key(kirk1_key, 128, &aes_kirk1);
+    AES_set_key(&aes_kirk1, kirk1_key, 128);
 	is_kirk_initialized = 1;
     return 0;
 }
