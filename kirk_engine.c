@@ -50,7 +50,48 @@ char is_kirk_initialized; //"init" emulation
 
 /* ------------------------- IMPLEMENTATION ------------------------- */
 
-int kirk_CMD1(void* outbuff, void* inbuff, int size)
+int kirk_CMD0(void* outbuff, void* inbuff, int size)
+{
+	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
+	
+    KIRK_CMD1_HEADER* header = (KIRK_CMD1_HEADER*)outbuff;
+    
+    memcpy(outbuff, inbuff, size);
+    
+	if(header->mode != KIRK_MODE_CMD1) return KIRK_INVALID_MODE;
+	
+	header_keys *keys = (header_keys *)outbuff; //0-15 AES key, 16-31 CMAC key
+	
+	//ENCRYPT DATA
+	AES_ctx k1;
+	AES_set_key(&k1, keys->AES, 128);
+	
+	AES_cbc_encrypt(&k1, inbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, outbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, header->data_size);
+	
+	//CMAC HASHES
+	AES_ctx cmac_key;
+	AES_set_key(&cmac_key, keys->CMAC, 128);
+	    
+	u8 cmac_header_hash[16];
+	u8 cmac_data_hash[16];
+		
+	AES_CMAC(&cmac_key, outbuff+0x60, 0x30, cmac_header_hash);
+	
+	//Make sure data is 16 aligned
+	int chk_size = header->data_size;
+	if(chk_size % 16) chk_size += 16 - (chk_size % 16);
+	AES_CMAC(&cmac_key, outbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
+	
+	memcpy(header->CMAC_header_hash, cmac_header_hash, 16);
+	memcpy(header->CMAC_data_hash, cmac_data_hash, 16);
+	
+	//ENCRYPT KEYS
+	
+	AES_cbc_encrypt(&aes_kirk1, inbuff, outbuff, 16*2); //decrypt AES & CMAC key to temp buffer
+	return KIRK_OPERATION_SUCCESS;
+}
+
+int kirk_CMD1(void* outbuff, void* inbuff, int size, int do_check)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -61,8 +102,12 @@ int kirk_CMD1(void* outbuff, void* inbuff, int size)
 	
 	AES_cbc_decrypt(&aes_kirk1, inbuff, (u8*)&keys, 16*2); //decrypt AES & CMAC key to temp buffer
 	
-    int ret = kirk_CMD10(inbuff, size);
-    if(ret != KIRK_OPERATION_SUCCESS) return ret;
+	// HOAX WARRING! I have no idea why the hash check on last IPL block fails, so there is an option to disable checking
+	if(do_check)
+	{
+       int ret = kirk_CMD10(inbuff, size);
+       if(ret != KIRK_OPERATION_SUCCESS) return ret;
+    }
 	
 	AES_ctx k1;
 	AES_set_key(&k1, keys.AES, 128);
@@ -139,12 +184,11 @@ int kirk_CMD10(void* inbuff, int insize)
 		if(chk_size % 16) chk_size += 16 - (chk_size % 16);
 		AES_CMAC(&cmac_key, inbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
 	
-		/*if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0)
+		if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0)
         {
             printf("header hash invalid\n");
             return KIRK_HEADER_HASH_INVALID;
         }
-        */
 		if(memcmp(cmac_data_hash, header->CMAC_data_hash, 16) != 0)
         {
             printf("data hash invalid\n");
@@ -154,6 +198,14 @@ int kirk_CMD10(void* inbuff, int insize)
 		return KIRK_OPERATION_SUCCESS;
 	}
 	return KIRK_SIG_CHECK_INVALID; //Checks for cmd 2 & 3 not included right now
+}
+
+int kirk_CMD11(void* outbuff, void* inbuff, int size)
+{
+    SHA1Context sha;
+    SHA1Reset(&sha);
+    SHA1Input(&sha, inbuff, size);
+    memcpy(outbuff, sha.Message_Digest, 16);
 }
 
 int kirk_init()
@@ -195,7 +247,7 @@ int kirk_CMD1_ex(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header
     u8* buffer = (u8*)malloc(size);
     memcpy(buffer, header, sizeof(KIRK_CMD1_HEADER));
     memcpy(buffer+sizeof(KIRK_CMD1_HEADER), inbuff, header->data_size);
-    int ret = kirk_CMD1(outbuff, buffer, size);
+    int ret = kirk_CMD1(outbuff, buffer, size, 1);
     free(buffer);
     return ret;
 }
@@ -210,7 +262,7 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 {
     switch(cmd)
     {
-		case KIRK_CMD_DECRYPT_PRIVATE: return kirk_CMD1(outbuff, inbuff, insize); break;
+		case KIRK_CMD_DECRYPT_PRIVATE: return kirk_CMD1(outbuff, inbuff, insize, 1); break;
 		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
 		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
 		case KIRK_CMD_PRIV_SIG_CHECK: return kirk_CMD10(inbuff, insize); break;

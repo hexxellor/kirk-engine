@@ -56,6 +56,7 @@ typedef struct
 #define KIRK_CMD_DECRYPT_IV_FUSE 8
 #define KIRK_CMD_DECRYPT_IV_USER 9
 #define KIRK_CMD_PRIV_SIG_CHECK 10
+#define KIRK_CMD_SHA1_HASH 11
 
 //"mode" in header
 #define KIRK_MODE_CMD1 1
@@ -92,10 +93,12 @@ typedef struct
 */
 
 //kirk-like funcs
-int kirk_CMD1(void* outbuff, void* inbuff, int size);
+int kirk_CMD0(void* outbuff, void* inbuff, int size);
+int kirk_CMD1(void* outbuff, void* inbuff, int size, int do_check);
 int kirk_CMD4(void* outbuff, void* inbuff, int size);
 int kirk_CMD7(void* outbuff, void* inbuff, int size);
 int kirk_CMD10(void* inbuff, int insize);
+int kirk_CMD11(void* outbuff, void* inbuff, int size);
 int kirk_init(); //CMD 0xF?
 
 //helper funcs
