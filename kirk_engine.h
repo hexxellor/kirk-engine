@@ -47,6 +47,11 @@ typedef struct
 	u8 unk5[16];               //80
 } KIRK_CMD1_HEADER; //0x90
 
+typedef struct
+{
+    u32 data_size;             //0     
+} KIRK_SHA1_HEADER;            //4
+
 //mode passed to sceUtilsBufferCopyWithRange
 #define KIRK_CMD_DECRYPT_PRIVATE 1
 #define KIRK_CMD_ENCRYPT_IV_0 4

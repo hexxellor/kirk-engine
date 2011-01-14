@@ -1,6 +1,6 @@
 /* 
 	KIRK ENGINE CODE
-	Thx for coyotebean, Davee, kgsws, Mathieulh, SilverSpring
+	Thx for coyotebean, Davee, hitchhikr, kgsws, Mathieulh, SilverSpring
 */
 #include "crypto.h"
 
@@ -202,9 +202,14 @@ int kirk_CMD10(void* inbuff, int insize)
 
 int kirk_CMD11(void* outbuff, void* inbuff, int size)
 {
+	KIRK_SHA1_HEADER *header = (KIRK_SHA1_HEADER *)inbuff;
+	
     SHA1Context sha;
     SHA1Reset(&sha);
-    SHA1Input(&sha, inbuff, size);
+    size <<= 4;
+    size >>= 4;
+	size = size < header->data_size ? size : header->data_size;
+    SHA1Input(&sha, inbuff+sizeof(KIRK_SHA1_HEADER), size);
     memcpy(outbuff, sha.Message_Digest, 16);
 }
 
@@ -266,6 +271,7 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
 		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
 		case KIRK_CMD_PRIV_SIG_CHECK: return kirk_CMD10(inbuff, insize); break;
+		case KIRK_CMD_SHA1_HASH: return kirk_CMD11(outbuff, inbuff, insize); break;
 	}
 	return -1;
 }
