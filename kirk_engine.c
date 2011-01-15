@@ -50,7 +50,7 @@ char is_kirk_initialized; //"init" emulation
 
 /* ------------------------- IMPLEMENTATION ------------------------- */
 
-int kirk_CMD0(void* outbuff, void* inbuff, int size)
+int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -63,7 +63,7 @@ int kirk_CMD0(void* outbuff, void* inbuff, int size)
 	header_keys *keys = (header_keys *)outbuff; //0-15 AES key, 16-31 CMAC key
 	
 	//FILL PREDATA WITH RANDOM DATA
-	kirk_CMD14(outbuff+sizeof(KIRK_CMD1_HEADER), header->data_offset);
+	if(generate_trash) kirk_CMD14(outbuff+sizeof(KIRK_CMD1_HEADER), header->data_offset);
 	
 	//ENCRYPT DATA
 	AES_ctx k1;
@@ -235,6 +235,7 @@ int kirk_init()
 {
     AES_set_key(&aes_kirk1, kirk1_key, 128);
 	is_kirk_initialized = 1;
+	srand(time(0));
     return KIRK_OPERATION_SUCCESS;
 }
 
@@ -285,7 +286,11 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
 {
     switch(cmd)
     {
-		case KIRK_CMD_DECRYPT_PRIVATE: return kirk_CMD1(outbuff, inbuff, insize, 1); break;
+		case KIRK_CMD_DECRYPT_PRIVATE: 
+             if(insize % 16) return SUBCWR_NOT_16_ALGINED;
+             int ret = kirk_CMD1(outbuff, inbuff, insize, 1); 
+             if(ret == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
+             break;
 		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
 		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
 		case KIRK_CMD_PRIV_SIG_CHECK: return kirk_CMD10(inbuff, insize); break;

@@ -70,6 +70,11 @@ typedef struct
 #define KIRK_MODE_ENCRYPT_CBC 4
 #define KIRK_MODE_DECRYPT_CBC 5
 
+//sceUtilsBufferCopyWithRange errors
+#define SUBCWR_NOT_16_ALGINED 0x90A
+#define SUBCWR_HEADER_HASH_INVALID 0x920
+#define SUBCWR_BUFFER_TOO_SMALL 0x1000
+
 /*
       // Private Sig + Cipher
       0x01: Super-Duper decryption (no inverse)
@@ -98,7 +103,7 @@ typedef struct
 */
 
 //kirk-like funcs
-int kirk_CMD0(void* outbuff, void* inbuff, int size);
+int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash);
 int kirk_CMD1(void* outbuff, void* inbuff, int size, int do_check);
 int kirk_CMD4(void* outbuff, void* inbuff, int size);
 int kirk_CMD7(void* outbuff, void* inbuff, int size);
