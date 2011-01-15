@@ -62,6 +62,9 @@ int kirk_CMD0(void* outbuff, void* inbuff, int size)
 	
 	header_keys *keys = (header_keys *)outbuff; //0-15 AES key, 16-31 CMAC key
 	
+	//FILL PREDATA WITH RANDOM DATA
+	kirk_CMD14(outbuff+sizeof(KIRK_CMD1_HEADER), header->data_offset);
+	
 	//ENCRYPT DATA
 	AES_ctx k1;
 	AES_set_key(&k1, keys->AES, 128);
@@ -87,7 +90,7 @@ int kirk_CMD0(void* outbuff, void* inbuff, int size)
 	
 	//ENCRYPT KEYS
 	
-	AES_cbc_encrypt(&aes_kirk1, inbuff, outbuff, 16*2); //decrypt AES & CMAC key to temp buffer
+	AES_cbc_encrypt(&aes_kirk1, inbuff, outbuff, 16*2);
 	return KIRK_OPERATION_SUCCESS;
 }
 
@@ -202,7 +205,9 @@ int kirk_CMD10(void* inbuff, int insize)
 
 int kirk_CMD11(void* outbuff, void* inbuff, int size)
 {
+    if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	KIRK_SHA1_HEADER *header = (KIRK_SHA1_HEADER *)inbuff;
+	if(header->data_size == 0 || size == 0) return KIRK_DATA_SIZE_ZERO;
 	
     SHA1Context sha;
     SHA1Reset(&sha);
@@ -211,13 +216,26 @@ int kirk_CMD11(void* outbuff, void* inbuff, int size)
 	size = size < header->data_size ? size : header->data_size;
     SHA1Input(&sha, inbuff+sizeof(KIRK_SHA1_HEADER), size);
     memcpy(outbuff, sha.Message_Digest, 16);
+    return KIRK_OPERATION_SUCCESS;
+}
+
+int kirk_CMD14(void* outbuff, int size)
+{
+    if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
+    int i;
+    u8* buf = (u8*)outbuff;
+    for(i = 0; i < size; i++)
+    {
+          buf[i] = rand()%255;
+    }
+    return KIRK_OPERATION_SUCCESS;
 }
 
 int kirk_init()
 {
     AES_set_key(&aes_kirk1, kirk1_key, 128);
 	is_kirk_initialized = 1;
-    return 0;
+    return KIRK_OPERATION_SUCCESS;
 }
 
 u8* kirk_4_7_get_key(int key_type)

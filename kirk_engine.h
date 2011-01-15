@@ -104,6 +104,7 @@ int kirk_CMD4(void* outbuff, void* inbuff, int size);
 int kirk_CMD7(void* outbuff, void* inbuff, int size);
 int kirk_CMD10(void* inbuff, int insize);
 int kirk_CMD11(void* outbuff, void* inbuff, int size);
+int kirk_CMD14(void* outbuff, int size);
 int kirk_init(); //CMD 0xF?
 
 //helper funcs
