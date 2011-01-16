@@ -47,7 +47,6 @@ char is_kirk_initialized; //"init" emulation
 /* ------------------------- INTERNAL STUFF END ------------------------- */
 
 
-
 /* ------------------------- IMPLEMENTATION ------------------------- */
 
 int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash)
@@ -65,11 +64,15 @@ int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash)
 	//FILL PREDATA WITH RANDOM DATA
 	if(generate_trash) kirk_CMD14(outbuff+sizeof(KIRK_CMD1_HEADER), header->data_offset);
 	
+	//Make sure data is 16 aligned
+	int chk_size = header->data_size;
+	if(chk_size % 16) chk_size += 16 - (chk_size % 16);
+	
 	//ENCRYPT DATA
 	AES_ctx k1;
 	AES_set_key(&k1, keys->AES, 128);
 	
-	AES_cbc_encrypt(&k1, inbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, outbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, header->data_size);
+	AES_cbc_encrypt(&k1, inbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, outbuff+sizeof(KIRK_CMD1_HEADER)+header->data_offset, chk_size);
 	
 	//CMAC HASHES
 	AES_ctx cmac_key;
@@ -80,9 +83,6 @@ int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash)
 		
 	AES_CMAC(&cmac_key, outbuff+0x60, 0x30, cmac_header_hash);
 	
-	//Make sure data is 16 aligned
-	int chk_size = header->data_size;
-	if(chk_size % 16) chk_size += 16 - (chk_size % 16);
 	AES_CMAC(&cmac_key, outbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
 	
 	memcpy(header->CMAC_header_hash, cmac_header_hash, 16);
@@ -290,6 +290,7 @@ int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int in
              if(insize % 16) return SUBCWR_NOT_16_ALGINED;
              int ret = kirk_CMD1(outbuff, inbuff, insize, 1); 
              if(ret == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
+             return ret;
              break;
 		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
 		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
