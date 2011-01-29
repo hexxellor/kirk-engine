@@ -1,7 +1,29 @@
-/* 
-	KIRK ENGINE CODE
-	Thx for coyotebean, Davee, hitchhikr, kgsws, Mathieulh, SilverSpring
+/*
+	Draan proudly presents:
+	
+	With huge help from community:
+	coyotebean, Davee, hitchhikr, kgsws, liquidzigong, Mathieulh, Proxima, SilverSpring
+	
+	******************** KIRK-ENGINE ********************
+	An Open-Source implementation of KIRK (PSP crypto engine) algorithms and keys.
+	Includes also additional routines for hash forging.
+	
+	********************
+	
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #include "crypto.h"
 
 /* ------------------------- KEY VAULT ------------------------- */
@@ -134,7 +156,7 @@ int kirk_CMD4(void* outbuff, void* inbuff, int size)
 	//Set the key
 	AES_ctx aesKey;
 	AES_set_key(&aesKey, key, 128);
- 	AES_cbc_encrypt(&aesKey, inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff, size);
+	AES_cbc_encrypt(&aesKey, inbuff+sizeof(KIRK_AES128CBC_HEADER), outbuff+sizeof(KIRK_AES128CBC_HEADER), size);
 	
 	return KIRK_OPERATION_SUCCESS;
 }
