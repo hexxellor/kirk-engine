@@ -129,23 +129,23 @@ typedef struct
 */
 
 //kirk-like funcs
-int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash);
-int kirk_CMD1(void* outbuff, void* inbuff, int size, int do_check);
-int kirk_CMD4(void* outbuff, void* inbuff, int size);
-int kirk_CMD7(void* outbuff, void* inbuff, int size);
-int kirk_CMD10(void* inbuff, int insize);
-int kirk_CMD11(void* outbuff, void* inbuff, int size);
-int kirk_CMD14(void* outbuff, int size);
+int kirk_CMD0(u8* outbuff, u8* inbuff, int size, int generate_trash);
+int kirk_CMD1(u8* outbuff, u8* inbuff, int size, int do_check);
+int kirk_CMD4(u8* outbuff, u8* inbuff, int size);
+int kirk_CMD7(u8* outbuff, u8* inbuff, int size);
+int kirk_CMD10(u8* inbuff, int insize);
+int kirk_CMD11(u8* outbuff, u8* inbuff, int size);
+int kirk_CMD14(u8* outbuff, int size);
 int kirk_init(); //CMD 0xF?
 
 //helper funcs
 u8* kirk_4_7_get_key(int key_type);
 
 //kirk "ex" functions
-int kirk_CMD1_ex(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header);
+int kirk_CMD1_ex(u8* outbuff, u8* inbuff, int size, KIRK_CMD1_HEADER* header);
 
 //sce-like funcs
-int sceUtilsSetFuseID(void*fuse);
-int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd);
+int sceUtilsSetFuseID(u8*fuse);
+int sceUtilsBufferCopyWithRange(u8* outbuff, int outsize, u8* inbuff, int insize, int cmd);
 
 #endif

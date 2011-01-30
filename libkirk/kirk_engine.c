@@ -24,6 +24,10 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include "crypto.h"
 
 /* ------------------------- KEY VAULT ------------------------- */
@@ -71,7 +75,7 @@ char is_kirk_initialized; //"init" emulation
 
 /* ------------------------- IMPLEMENTATION ------------------------- */
 
-int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash)
+int kirk_CMD0(u8* outbuff, u8* inbuff, int size, int generate_trash)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -116,7 +120,7 @@ int kirk_CMD0(void* outbuff, void* inbuff, int size, int generate_trash)
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_CMD1(void* outbuff, void* inbuff, int size, int do_check)
+int kirk_CMD1(u8* outbuff, u8* inbuff, int size, int do_check)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -142,7 +146,7 @@ int kirk_CMD1(void* outbuff, void* inbuff, int size, int do_check)
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_CMD4(void* outbuff, void* inbuff, int size)
+int kirk_CMD4(u8* outbuff, u8* inbuff, int size)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -161,7 +165,7 @@ int kirk_CMD4(void* outbuff, void* inbuff, int size)
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_CMD7(void* outbuff, void* inbuff, int size)
+int kirk_CMD7(u8* outbuff, u8* inbuff, int size)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -181,7 +185,7 @@ int kirk_CMD7(void* outbuff, void* inbuff, int size)
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_CMD10(void* inbuff, int insize)
+int kirk_CMD10(u8* inbuff, int insize)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -209,23 +213,15 @@ int kirk_CMD10(void* inbuff, int insize)
 		if(chk_size % 16) chk_size += 16 - (chk_size % 16);
 		AES_CMAC(&cmac_key, inbuff+0x60, 0x30 + chk_size + header->data_offset, cmac_data_hash);
 	
-		if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0)
-        {
-            printf("header hash invalid\n");
-            return KIRK_HEADER_HASH_INVALID;
-        }
-		if(memcmp(cmac_data_hash, header->CMAC_data_hash, 16) != 0)
-        {
-            printf("data hash invalid\n");
-            return KIRK_DATA_HASH_INVALID;
-        }
+		if(memcmp(cmac_header_hash, header->CMAC_header_hash, 16) != 0) return KIRK_HEADER_HASH_INVALID;
+		if(memcmp(cmac_data_hash, header->CMAC_data_hash, 16) != 0) return KIRK_DATA_HASH_INVALID;
 	
 		return KIRK_OPERATION_SUCCESS;
 	}
 	return KIRK_SIG_CHECK_INVALID; //Checks for cmd 2 & 3 not included right now
 }
 
-int kirk_CMD11(void* outbuff, void* inbuff, int size)
+int kirk_CMD11(u8* outbuff, u8* inbuff, int size)
 {
     if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	KIRK_SHA1_HEADER *header = (KIRK_SHA1_HEADER *)inbuff;
@@ -237,11 +233,10 @@ int kirk_CMD11(void* outbuff, void* inbuff, int size)
     size >>= 4;
 	size = size < header->data_size ? size : header->data_size;
     SHA1Input(&sha, inbuff+sizeof(KIRK_SHA1_HEADER), size);
-    memcpy(outbuff, sha.Message_Digest, 16);
+    memcpy(outbuff, (u8*)sha.Message_Digest, 16);
     return KIRK_OPERATION_SUCCESS;
 }
-
-int kirk_CMD14(void* outbuff, int size)
+int kirk_CMD14(u8* outbuff, int size)
 {
     if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
     int i;
@@ -288,7 +283,7 @@ u8* kirk_4_7_get_key(int key_type)
 	}
 }
 
-int kirk_CMD1_ex(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header)
+int kirk_CMD1_ex(u8* outbuff, u8* inbuff, int size, KIRK_CMD1_HEADER* header)
 {
     u8* buffer = (u8*)malloc(size);
     memcpy(buffer, header, sizeof(KIRK_CMD1_HEADER));
@@ -298,21 +293,20 @@ int kirk_CMD1_ex(void* outbuff, void* inbuff, int size, KIRK_CMD1_HEADER* header
     return ret;
 }
 
-int sceUtilsSetFuseID(void*fuse)
+int sceUtilsSetFuseID(u8*fuse)
 {
 	memcpy(fuseID, fuse, 16);
 	return 0;
 }
 
-int sceUtilsBufferCopyWithRange(void* outbuff, int outsize, void* inbuff, int insize, int cmd)
+int sceUtilsBufferCopyWithRange(u8* outbuff, int outsize, u8* inbuff, int insize, int cmd)
 {
     switch(cmd)
     {
 		case KIRK_CMD_DECRYPT_PRIVATE: 
              if(insize % 16) return SUBCWR_NOT_16_ALGINED;
-             int ret = kirk_CMD1(outbuff, inbuff, insize, 1); 
-             if(ret == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
-             return ret;
+             if(kirk_CMD1(outbuff, inbuff, insize, 1) == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
+             return 0;
              break;
 		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
 		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
