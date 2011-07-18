@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "kirk_engine.h"
+#include "../libkirk/kirk_engine.h"
 
 //IPL-DECRYPTER SAMPLE
 
@@ -49,14 +49,18 @@ void PrintKIRK1Header(u8* buf)
 
 int DecryptIplBlock(void *dst, const void *src)
 {
-    PrintKIRK1Header((void*)src);
-    int ret = kirk_CMD1(dst, (void*)src, 0x1000, 0);
+#ifdef DEBUG
+	PrintKIRK1Header((void*)src);
+#endif
+    int ret = kirk_CMD1(dst, (void*)src, 0x1000);
     if(ret == KIRK_NOT_ENABLED){ printf("KIRK not enabled!\n"); return -1;}
     else if(ret == KIRK_INVALID_MODE){ printf("Mode in header not CMD1\n"); return -1;}
     else if(ret == KIRK_HEADER_HASH_INVALID){ printf("header hash check failed\n"); return -1;}
     else if(ret == KIRK_DATA_HASH_INVALID){ printf("data hash check failed\n"); return -1;}
     else if(ret == KIRK_DATA_SIZE_ZERO){ printf("data size = 0\n"); return -1;}
+#ifdef DEBUG
     else printf("Decrypt Success!\n\n");
+#endif
     return 0;
 }
 
@@ -81,15 +85,20 @@ u8 ipl[MAX_IPL_SIZE]; // buffer for IPL
 u8 buf[0x1000];       // temp buffer for one 4KB encrypted IPL block
 IplBlock decblk;      // decrypted IPL block
 
-int main()
+int main(int argc, char* argv[])
 {
+	if(argc < 3)
+	{
+		printf("Usage: ipl-decrypt input output\n");
+		return 0;
+	}
+
     int i;
-    int ret;
     int size = 0;
     int error = 0;
     u32 checksum = 0;
 	//Open the file to decrypt, get it's size
-    FILE *in = fopen("enc_ipl.bin", "rb");
+    FILE *in = fopen(argv[1], "rb");
     fseek(in, 0, SEEK_END);
     int size_enc = ftell(in);
     rewind(in);
@@ -129,13 +138,12 @@ int main()
         }
 
         // reached the last IPL block, save it
-        if (decblk.entry /*&& !error*/)
+        if (decblk.entry && !error)
         {
-            FILE *out = fopen("dec_ipl.bin", "wb");
+            FILE *out = fopen(argv[2], "wb");
             fwrite(ipl, size, 1, out);
             fclose(out);
             printf("\nIPL decrypted successfully. \n");
-            system("PAUSE");
 	        return 0;
         }
     }

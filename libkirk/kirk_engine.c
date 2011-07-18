@@ -28,7 +28,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "crypto.h"
+#include "AES.h"
+#include "SHA1.h"
 
 /* ------------------------- KEY VAULT ------------------------- */
 
@@ -120,7 +121,7 @@ int kirk_CMD0(u8* outbuff, u8* inbuff, int size, int generate_trash)
 	return KIRK_OPERATION_SUCCESS;
 }
 
-int kirk_CMD1(u8* outbuff, u8* inbuff, int size, int do_check)
+int kirk_CMD1(u8* outbuff, u8* inbuff, int size)
 {
 	if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
 	
@@ -131,8 +132,14 @@ int kirk_CMD1(u8* outbuff, u8* inbuff, int size, int do_check)
 	
 	AES_cbc_decrypt(&aes_kirk1, inbuff, (u8*)&keys, 16*2); //decrypt AES & CMAC key to temp buffer
 	
-	// HOAX WARRING! I have no idea why the hash check on last IPL block fails, so there is an option to disable checking
-	if(do_check)
+	if(header->ecdsa_hash == 1)
+	{
+		/* ECDSA hash check is not supported yet, skip it
+		int ret = kirk_CMD17();
+		if(ret != KIRK_OPERATION_SUCCESS) return ret;
+		*/
+	}
+	else
 	{
        int ret = kirk_CMD10(inbuff, size);
        if(ret != KIRK_OPERATION_SUCCESS) return ret;
@@ -248,6 +255,153 @@ int kirk_CMD14(u8* outbuff, int size)
     return KIRK_OPERATION_SUCCESS;
 }
 
+typedef struct
+{
+	u8 fuseid[8];	//0
+	u8 mesh[0x40];	//0x8
+} keygen_data; //0x48
+
+
+/*
+u8 g_idstorage_dA_key[] =
+{
+	0x47, 0x5E, 0x09, 0xF4, 0xA2, 0x37, 0xDA, 0x9B, 
+	0xEF, 0xFF, 0x3B, 0xC0, 0x77, 0x14, 0x3D, 0x8A
+};
+ 
+void decrypt_kirk10_private(u8 *dA_out, u8 *dA_enc)
+{
+	int i, k;
+	keygen_data keydata;
+	u8 subkey_1[0x10], subkey_2[0x10];
+	rijndael_ctx aes_ctx;
+ 
+	// get the fuse id
+	for (i = 0; i < 4; i++)
+	{
+		keydata.fuseid[3 - i] = ((u8 *)0xBC100090)[i+4];
+		keydata.fuseid[7 - i] = ((u8 *)0xBC100090)[i];
+	}
+ 
+	// set encryption key
+	rijndael_set_key(&aes_ctx, g_idstorage_dA_key, 128);
+ 
+	//set the subkeys 
+	for (i = 0; i < 0x10; i++)
+	{
+		//set to the fuseid
+		subkey_2[i] = subkey_1[i] = keydata.fuseid[i % 8];
+	}
+ 
+	// do aes crypto
+	for (i = 0; i < 3; i++)
+	{
+		//encrypt + decrypt
+		rijndael_encrypt(&aes_ctx, subkey_1, subkey_1);
+		rijndael_decrypt(&aes_ctx, subkey_2, subkey_2);
+	}
+ 
+	//set new key
+	rijndael_set_key(&aes_ctx, subkey_1, 128);
+ 
+	//now lets make the key mesh
+	for (i = 0; i < 3; i++)
+	{
+		//do encryption in group of 3
+		for (k = 0; k < 3; k++)
+		{
+			//crypto
+			rijndael_encrypt(&aes_ctx, subkey_2, subkey_2);
+		}
+ 
+		//copy to out block
+		memcpy(&keydata.mesh[i * 0x10], subkey_2, 0x10);
+	}
+ 
+	//set the key to the mesh
+	rijndael_set_key(&aes_ctx, &keydata.mesh[0x20], 128);
+ 
+	//do the encryption routines for the aes key
+	for (i = 0; i < 2; i++)
+	{
+		//encrypt the data
+		rijndael_encrypt(&aes_ctx, &keydata.mesh[0x10], &keydata.mesh[0x10]);
+	}
+ 
+	//set the key to that mesh shit
+	rijndael_set_key(&aes_ctx, &keydata.mesh[0x10], 128);
+ 
+	//cbc decrypt the dA
+	aes_cbc_decrypt(&aes_ctx, dA_enc, dA_out, 0x20, NULL);
+}
+ 
+void encrypt_kirk10_private(u8 *dA_out, u8 *dA_dec)
+{
+	int i, k;
+	keygen_data keydata;
+	u8 subkey_1[0x10], subkey_2[0x10];
+	rijndael_ctx aes_ctx;
+ 
+	//get the fuse id
+	for (i = 0; i < 4; i++)
+	{
+		keydata.fuseid[3 - i] = ((u8 *)0xBC100090)[i+4];
+		keydata.fuseid[7 - i] = ((u8 *)0xBC100090)[i];
+	}
+ 
+	//set encryption key
+	rijndael_set_key(&aes_ctx, g_idstorage_dA_key, 128);
+ 
+	//set the subkeys
+	for (i = 0; i < 0x10; i++)
+	{
+		//set to the fuseid
+		subkey_2[i] = subkey_1[i] = keydata.fuseid[i % 8];
+	}
+ 
+	//do aes crypto
+	for (i = 0; i < 3; i++)
+	{
+		//encrypt + decrypt
+		rijndael_encrypt(&aes_ctx, subkey_1, subkey_1);
+		rijndael_decrypt(&aes_ctx, subkey_2, subkey_2);
+	}
+ 
+	//set new key
+	rijndael_set_key(&aes_ctx, subkey_1, 128);
+ 
+	//now lets make the key mesh
+	for (i = 0; i < 3; i++)
+	{
+		//do encryption in group of 3
+		for (k = 0; k < 3; k++)
+		{
+			//crypto
+			rijndael_encrypt(&aes_ctx, subkey_2, subkey_2);
+		}
+ 
+		// copy to out block
+		memcpy(&keydata.mesh[i * 0x10], subkey_2, 0x10);
+	}
+ 
+	// set the key to the mesh
+	rijndael_set_key(&aes_ctx, &keydata.mesh[0x20], 128);
+ 
+	// do the encryption routines for the aes key
+	for (i = 0; i < 2; i++)
+	{
+		// encrypt the data
+		rijndael_encrypt(&aes_ctx, &keydata.mesh[0x10], &keydata.mesh[0x10]);
+	}
+ 
+	// set the key to that mesh shit
+	rijndael_set_key(&aes_ctx, &keydata.mesh[0x10], 128);
+ 
+	// cbc encrypt the dA
+	aes_cbc_encrypt(&aes_ctx, dA_dec, dA_out, 0x20, NULL);
+}
+*/
+
 int kirk_init()
 {
     AES_set_key(&aes_kirk1, kirk1_key, 128);
@@ -288,7 +442,7 @@ int kirk_CMD1_ex(u8* outbuff, u8* inbuff, int size, KIRK_CMD1_HEADER* header)
     u8* buffer = (u8*)malloc(size);
     memcpy(buffer, header, sizeof(KIRK_CMD1_HEADER));
     memcpy(buffer+sizeof(KIRK_CMD1_HEADER), inbuff, header->data_size);
-    int ret = kirk_CMD1(outbuff, buffer, size, 1);
+    int ret = kirk_CMD1(outbuff, buffer, size);
     free(buffer);
     return ret;
 }
@@ -305,12 +459,12 @@ int sceUtilsBufferCopyWithRange(u8* outbuff, int outsize, u8* inbuff, int insize
     {
 		case KIRK_CMD_DECRYPT_PRIVATE: 
              if(insize % 16) return SUBCWR_NOT_16_ALGINED;
-             if(kirk_CMD1(outbuff, inbuff, insize, 1) == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
+             if(kirk_CMD1(outbuff, inbuff, insize) == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
              return 0;
              break;
 		case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
 		case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
-		case KIRK_CMD_PRIV_SIG_CHECK: return kirk_CMD10(inbuff, insize); break;
+		case KIRK_CMD_PRIV_SIGN_CHECK: return kirk_CMD10(inbuff, insize); break;
 		case KIRK_CMD_SHA1_HASH: return kirk_CMD11(outbuff, inbuff, insize); break;
 	}
 	return -1;
