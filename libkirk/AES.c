@@ -28,7 +28,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 
 #include "AES.h"
 
@@ -1286,12 +1286,12 @@ int AES_set_key(AES_ctx *ctx, const u8 *key, int bits)
 
 void AES_decrypt(AES_ctx *ctx, const u8 *src, u8 *dst)
 {
-	return rijndaelDecrypt(ctx->dk, ctx->Nr, src, dst);
+	rijndaelDecrypt(ctx->dk, ctx->Nr, src, dst);
 }
 
 void AES_encrypt(AES_ctx *ctx, const u8 *src, u8 *dst)
 {
-	return rijndaelEncrypt(ctx->ek, ctx->Nr, src, dst);
+	rijndaelEncrypt(ctx->ek, ctx->Nr, src, dst);
 }
 
 void xor_128(unsigned char *a, unsigned char *b, unsigned char *out)
@@ -1329,6 +1329,7 @@ void AES_cbc_decrypt(AES_ctx *ctx, u8 *src, u8 *dst, int size)
 {
 	u8 block_buff[16];
 	u8 block_buff_previous[16];
+	int i;
 	
 	memcpy(block_buff, src, 16);
 	memcpy(block_buff_previous, src, 16);
@@ -1337,7 +1338,7 @@ void AES_cbc_decrypt(AES_ctx *ctx, u8 *src, u8 *dst, int size)
 	dst += 16;
 	src += 16;
 	
-	int i;
+	
 	for(i = 16; i < size; i+=16)
 	{
 		//step1: backup current block for next block decrypt

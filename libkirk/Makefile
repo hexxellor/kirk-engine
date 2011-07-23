@@ -5,7 +5,7 @@ CC = gcc
 CFLAGS = -Wall -g
 
 TARGET = libkirk.a
-OBJS = kirk_engine.o SHA1.o AES.o
+OBJS = kirk_engine.o SHA1.o AES.o ec.o bn.o 
 
 all: $(TARGET)
 
