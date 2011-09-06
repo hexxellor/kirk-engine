@@ -14,6 +14,8 @@ int main(int argc, char  *argv[])
 	u8 keypair[0x3C];
 	u8 newpoint[0x28];
 	u8 mult_test[0x3c];
+	u8 correct_sha1[0x14] = { 0xDE, 0x8A, 0x84, 0x7B, 0xFF, 0x8C, 0x34, 0x3D, 0x69,0xB8,
+				0x53,0xA2,0x15, 0xE6, 0xEE, 0x77, 0x5E,0xF2, 0xEF, 0x96 };
 	u8 test17_fullsig[0x64];
 	KIRK_CMD16_BUFFER ecdsa_sign;
 	ECDSA_SIG signature;
@@ -57,7 +59,19 @@ int main(int argc, char  *argv[])
 	// Process them as u32 so the endian order stays correct.
 	kirk_init2((u8*)"This is my test seed",20,0x12345678, 0xabcd );
 	//kirk_init();
-	
+	memset(rnd,0,0x14);
+	memset(rndbig,0,0x80);
+	rndbig[0]= 0x20;
+	hex_dump("KIRK 11 buff", rndbig,0x24);
+	sceUtilsBufferCopyWithRange(rnd,0x14,rndbig,0x24,0xB);
+	hex_dump("SHA1 Result", rnd,0x14);
+	if(memcmp(rnd,correct_sha1,0x14) == 0 ) {
+		printf("SHA1 of 0x20 00s is correct!\n");
+	} else {
+		printf("SHA1 failed!\n");
+		return -1;
+	}
+
 	// Test Random Generator
 	printf("\nGenerating 2 random numbers...\n");
 	sceUtilsBufferCopyWithRange(rndbig,0x77,0,0,0xE);

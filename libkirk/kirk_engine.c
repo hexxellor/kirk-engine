@@ -231,16 +231,13 @@ int kirk_CMD10(u8* inbuff, int insize)
 int kirk_CMD11(u8* outbuff, u8* inbuff, int size)
 {
   KIRK_SHA1_HEADER *header = (KIRK_SHA1_HEADER *)inbuff;
-  SHA1Context sha;
-
+  SHA_CTX sha;
   if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
   if(header->data_size == 0 || size == 0) return KIRK_DATA_SIZE_ZERO;
   
-  SHA1Reset(&sha);
-  size <<= 4; size >>= 4;
-  size = size < header->data_size ? size : header->data_size;
-  SHA1Input(&sha, inbuff+sizeof(KIRK_SHA1_HEADER), size);
-  memcpy(outbuff, (u8*)sha.Message_Digest, 20);
+	SHAInit(&sha);
+	SHAUpdate(&sha, inbuff+sizeof(KIRK_SHA1_HEADER), header->data_size);
+	SHAFinal(outbuff, &sha);
   return KIRK_OPERATION_SUCCESS;
 }
 

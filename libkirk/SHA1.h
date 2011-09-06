@@ -1,23 +1,52 @@
-#ifndef SHA1
-#define SHA1
-typedef struct SHA1Context
-{
-    unsigned Message_Digest[5]; /* Message Digest (output)          */
-    unsigned Length_Low;        /* Message length in bits           */
-    unsigned Length_High;       /* Message length in bits           */
-    unsigned char Message_Block[64]; /* 512-bit message blocks      */
-    int Message_Block_Index;    /* Index into message block array   */
-    int Computed;               /* Is the digest computed?          */
-    int Corrupted;              /* Is the message digest corruped?  */
-} SHA1Context;
+#ifndef _GLOBAL_H_
+#define _GLOBAL_H_ 1
 
-/*
- *  Function Prototypes
- */
-void SHA1Reset(SHA1Context *);
-int SHA1Result(SHA1Context *);
-void SHA1Input( SHA1Context *,
-                const unsigned char *,
-                unsigned);
-				
-#endif
+/* POINTER defines a generic pointer type */
+typedef unsigned char *POINTER;
+
+/* UINT4 defines a four byte word */
+typedef unsigned int UINT4;
+
+/* BYTE defines a unsigned character */
+typedef unsigned char BYTE;
+
+#ifndef TRUE
+  #define FALSE	0
+  #define TRUE	( !FALSE )
+#endif /* TRUE */
+
+#endif /* end _GLOBAL_H_ */
+
+/* sha.h */
+
+#ifndef _SHA_H_
+#define _SHA_H_ 1
+
+/* #include "global.h" */
+
+/* The structure for storing SHS info */
+
+typedef struct 
+{
+	UINT4 digest[ 5 ];            /* Message digest */
+	UINT4 countLo, countHi;       /* 64-bit bit count */
+	UINT4 data[ 16 ];             /* SHS data buffer */
+	int Endianness;
+} SHA_CTX;
+
+/* Message digest functions */
+
+void SHAInit(SHA_CTX *);
+void SHAUpdate(SHA_CTX *, BYTE *buffer, int count);
+void SHAFinal(BYTE *output, SHA_CTX *);
+
+#endif /* end _SHA_H_ */
+
+/* endian.h */
+
+#ifndef _ENDIAN_H_
+#define _ENDIAN_H_ 1
+
+void endianTest(int *endianness);
+
+#endif /* end _ENDIAN_H_ */
