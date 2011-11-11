@@ -76,6 +76,23 @@ typedef struct
 
 typedef struct
 {
+	u8  AES_key[16];            //0
+	u8  header_sig_r[20];           //10
+	u8  header_sig_s[20];   //24
+	u8  data_sig_r[20];     //38
+	u8  data_sig_s[20];     //4C
+	u32 mode;                   //60
+	u8  ecdsa_hash;             //64
+	u8  unk3[11];               //65
+	u32 data_size;              //70
+	u32 data_offset;            //74  
+	u8  unk4[8];                //78
+	u8  unk5[16];               //80
+} KIRK_CMD1_ECDSA_HEADER; //0x90
+
+
+typedef struct
+{
 	u8 r[0x14];
 	u8 s[0x14];
 } ECDSA_SIG; //0x28
@@ -205,7 +222,7 @@ void encrypt_kirk16_private(u8 *dA_out, u8 *dA_dec);
 
 // Prototypes for the Elliptic Curve and Big Number functions
 int ecdsa_get_params(u32 type, u8 *p, u8 *a, u8 *b, u8 *N, u8 *Gx, u8 *Gy);
-int ecdsa_set_curve(void);
+int ecdsa_set_curve(u8* p,u8* a,u8* b,u8* N,u8* Gx,u8* Gy);
 void ecdsa_set_pub(u8 *Q);
 void ecdsa_set_priv(u8 *k);
 int ecdsa_verify(u8 *hash, u8 *R, u8 *S);

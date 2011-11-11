@@ -58,6 +58,28 @@ u8 kirk7_key64[] = {0x03, 0xB3, 0x02, 0xE8, 0x5F, 0xF3, 0x81, 0xB1, 0x3B, 0x8D, 
 
 u8 kirk16_key[]  = {0x47, 0x5E, 0x09, 0xF4, 0xA2, 0x37, 0xDA, 0x9B, 0xEF, 0xFF, 0x3B, 0xC0, 0x77, 0x14, 0x3D, 0x8A};
 
+/* ECC Curves for Kirk 1 and Kirk 0x11 */
+// Common Curve paramters p and a
+static u8 ec_p[20] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static u8 ec_a[20] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC}; // mon
+
+// Kirk 0xC,0xD,0x10,0x11,(likely 0x12)- Unique curve parameters for b, N, and base point G for Kirk 0xC,0xD,0x10,0x11,(likely 0x12) service
+// Since public key is variable, it is not specified here
+static u8 ec_b2[20] = {0xA6, 0x8B, 0xED, 0xC3, 0x34, 0x18, 0x02, 0x9C, 0x1D, 0x3C, 0xE3, 0x3B, 0x9A, 0x32, 0x1F, 0xCC, 0xBB, 0x9E, 0x0F, 0x0B};// mon
+static u8 ec_N2[21] = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xB5, 0xAE, 0x3C, 0x52, 0x3E, 0x63, 0x94, 0x4F, 0x21, 0x27};
+static u8 Gx2[20] = {0x12, 0x8E, 0xC4, 0x25, 0x64, 0x87, 0xFD, 0x8F, 0xDF, 0x64, 0xE2, 0x43, 0x7B, 0xC0, 0xA1, 0xF6, 0xD5, 0xAF, 0xDE, 0x2C };
+static u8 Gy2[20] = {0x59, 0x58, 0x55, 0x7E, 0xB1, 0xDB, 0x00, 0x12, 0x60, 0x42, 0x55, 0x24, 0xDB, 0xC3, 0x79, 0xD5, 0xAC, 0x5F, 0x4A, 0xDF };
+
+// KIRK 1 - Unique curve parameters for b, N, and base point G
+// Since public key is hard coded, it is also included
+
+static u8 ec_b1[20] = {0x65, 0xD1, 0x48, 0x8C, 0x03, 0x59, 0xE2, 0x34, 0xAD, 0xC9, 0x5B, 0xD3, 0x90, 0x80, 0x14, 0xBD, 0x91, 0xA5, 0x25, 0xF9};
+static u8 ec_N1[21] = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x01, 0xB5, 0xC6, 0x17, 0xF2, 0x90, 0xEA, 0xE1, 0xDB, 0xAD, 0x8F};
+static u8 Gx1[20] = {0x22, 0x59, 0xAC, 0xEE, 0x15, 0x48, 0x9C, 0xB0, 0x96, 0xA8, 0x82, 0xF0, 0xAE, 0x1C, 0xF9, 0xFD, 0x8E, 0xE5, 0xF8, 0xFA };
+static u8 Gy1[20] = {0x60, 0x43, 0x58, 0x45, 0x6D, 0x0A, 0x1C, 0xB2, 0x90, 0x8D, 0xE9, 0x0F, 0x27, 0xD7, 0x5C, 0x82, 0xBE, 0xC1, 0x08, 0xC0 };
+
+static u8 Px1[20] = {0xED, 0x9C, 0xE5, 0x82, 0x34, 0xE6, 0x1A, 0x53, 0xC6, 0x85, 0xD6, 0x4D, 0x51, 0xD0, 0x23, 0x6B, 0xC3, 0xB5, 0xD4, 0xB9 };
+static u8 Py1[20] = {0x04, 0x9D, 0xF1, 0xA0, 0x75, 0xC0, 0xE0, 0x4F, 0xB3, 0x44, 0x85, 0x8B, 0x61, 0xB7, 0x9B, 0x69, 0xA6, 0x3D, 0x2C, 0x39 };
 
 /* ------------------------- KEY VAULT END ------------------------- */
 
@@ -133,7 +155,8 @@ int kirk_CMD1(u8* outbuff, u8* inbuff, int size)
   KIRK_CMD1_HEADER* header = (KIRK_CMD1_HEADER*)inbuff;
   header_keys keys; //0-15 AES key, 16-31 CMAC key
   AES_ctx k1;
-
+	
+	if(size < 0x90) return KIRK_INVALID_SIZE;
   if(is_kirk_initialized == 0) return KIRK_NOT_INITIALIZED;
   if(header->mode != KIRK_MODE_CMD1) return KIRK_INVALID_MODE;
   
@@ -141,10 +164,30 @@ int kirk_CMD1(u8* outbuff, u8* inbuff, int size)
   
   if(header->ecdsa_hash == 1)
   {
-    /* ECDSA hash check is not supported yet, skip it
-    int ret = kirk_CMD17();
-    if(ret != KIRK_OPERATION_SUCCESS) return ret;
-    */
+  	SHA_CTX sha;
+  	KIRK_CMD1_ECDSA_HEADER* eheader = (KIRK_CMD1_ECDSA_HEADER*) inbuff;
+  	u8 kirk1_pub[40];
+  	u8 header_hash[20];u8 data_hash[20];
+  	ecdsa_set_curve(ec_p,ec_a,ec_b1,ec_N1,Gx1,Gy1);
+  	memcpy(kirk1_pub,Px1,20);
+  	memcpy(kirk1_pub+20,Py1,20);
+  	ecdsa_set_pub(kirk1_pub);
+		//Hash the Header
+		SHAInit(&sha);
+		SHAUpdate(&sha, (u8*)eheader+0x60, 0x30);
+		SHAFinal(header_hash, &sha);		
+		
+	  if(!ecdsa_verify(header_hash,eheader->header_sig_r,eheader->header_sig_s)) {
+	    return KIRK_HEADER_HASH_INVALID;
+	  }
+	  SHAInit(&sha);
+		SHAUpdate(&sha, (u8*)eheader+0x60, size-0x60);
+		SHAFinal(data_hash, &sha);  
+		
+	  if(!ecdsa_verify(data_hash,eheader->data_sig_r,eheader->data_sig_s)) {
+	    return KIRK_DATA_HASH_INVALID;
+	  }
+
   } else  {
     int ret = kirk_CMD10(inbuff, size);
     if(ret != KIRK_OPERATION_SUCCESS) return ret;
@@ -249,7 +292,7 @@ int kirk_CMD12(u8 * outbuff, int outsize) {
   KIRK_CMD12_BUFFER * keypair = (KIRK_CMD12_BUFFER *) outbuff;
 
   if(outsize != 0x3C) return KIRK_INVALID_SIZE;
-  
+  ecdsa_set_curve(ec_p,ec_a,ec_b2,ec_N2,Gx2,Gy2);
   k[0] = 0;
   kirk_CMD14(k+1,0x14);
   ec_priv_to_pub(k, (u8*)keypair->public_key.x);
@@ -266,6 +309,7 @@ int kirk_CMD13(u8 * outbuff, int outsize,u8 * inbuff, int insize) {
   k[0]=0;
   if(outsize != 0x28) return KIRK_INVALID_SIZE;
   if(insize != 0x3C) return KIRK_INVALID_SIZE;
+  ecdsa_set_curve(ec_p,ec_a,ec_b2,ec_N2,Gx2,Gy2);
   ecdsa_set_pub((u8*)pointmult->public_key.x);
   memcpy(k+1,pointmult->multiplier,0x14);
   ec_pub_mult(k, outbuff);
@@ -462,7 +506,7 @@ int kirk_CMD16(u8 * outbuff, int outsize, u8 * inbuff, int insize) {
 	decrypt_kirk16_private(dec_private,signbuf->enc_private);
 	// Clear out the padding for safety
 	memset(&dec_private[0x14], 0, 0xC);
-	
+	ecdsa_set_curve(ec_p,ec_a,ec_b2,ec_N2,Gx2,Gy2);
 	ecdsa_set_priv(dec_private);
 	ecdsa_sign(signbuf->message_hash,sig->r, sig->s);
   return KIRK_OPERATION_SUCCESS;
@@ -477,6 +521,7 @@ int kirk_CMD16(u8 * outbuff, int outsize, u8 * inbuff, int insize) {
 int kirk_CMD17(u8 * inbuff, int insize) {
 	KIRK_CMD17_BUFFER * sig = (KIRK_CMD17_BUFFER *) inbuff;
   if(insize != 0x64) return KIRK_INVALID_SIZE;
+  ecdsa_set_curve(ec_p,ec_a,ec_b2,ec_N2,Gx2,Gy2);
   ecdsa_set_pub(sig->public_key.x);
   // ecdsa_verify(u8 *hash, u8 *R, u8 *S)
   if(ecdsa_verify(sig->message_hash,sig->signature.r,sig->signature.s)) {
@@ -531,8 +576,7 @@ int kirk_init2(u8 * rnd_seed, u32 seed_size, u32 fuseid_90, u32 fuseid_94) {
   //Set KIRK1 main key
   AES_set_key(&aes_kirk1, kirk1_key, 128);
   
-  //Set the Elliptic Curve for Kirk
-  ecdsa_set_curve();
+
   is_kirk_initialized = 1;
   return 0;
 }
@@ -581,11 +625,7 @@ int sceUtilsBufferCopyWithRange(u8* outbuff, int outsize, u8* inbuff, int insize
 {
   switch(cmd)
   {
-    case KIRK_CMD_DECRYPT_PRIVATE: 
-      if(insize % 16) return SUBCWR_NOT_16_ALGINED;
-      if(kirk_CMD1(outbuff, inbuff, insize) == KIRK_HEADER_HASH_INVALID) return SUBCWR_HEADER_HASH_INVALID;
-      return 0;
-      break;
+    case KIRK_CMD_DECRYPT_PRIVATE: return kirk_CMD1(outbuff, inbuff, insize); break;
     case KIRK_CMD_ENCRYPT_IV_0: return kirk_CMD4(outbuff, inbuff, insize); break;
     case KIRK_CMD_DECRYPT_IV_0: return kirk_CMD7(outbuff, inbuff, insize); break;
     case KIRK_CMD_PRIV_SIGN_CHECK: return kirk_CMD10(inbuff, insize); break;
